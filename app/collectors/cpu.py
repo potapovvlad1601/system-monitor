@@ -15,20 +15,24 @@ class CPUCollector:
 
         percentage = psutil.cpu_percent(interval=1)
         freq = psutil.cpu_freq()
-        temp = psutil.sensors_temperatures()
+        try:
+            temp = psutil.sensors_temperatures()
+        except (AttributeError, OSError):
+            temp = {}
         cpu_temp = None
 
 
         try:
             load_avg = psutil.getloadavg()
-        except (OSError, AttributeError):
-            load_avg = None
 
-        load_average = {
-            "1_min": load_avg[0],
-            "5_min": load_avg[1],
-            "15_min": load_avg[2]
-        }
+            load_average = {
+                "1_min": load_avg[0],
+                "5_min": load_avg[1],
+                "15_min": load_avg[2]
+            }
+
+        except (OSError, AttributeError):
+            load_average = None
 
 
         if temp:

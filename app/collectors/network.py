@@ -1,47 +1,18 @@
 import psutil
-import socket
 
 
 class NetworkCollector:
 
     @staticmethod
     def get_network_static_info() -> dict:
-        addresses = psutil.net_if_addrs()
         stats = psutil.net_if_stats()
 
         result = {}
 
-        for interface, addr_list in addresses.items():
-            if_stats = stats.get(interface)
-
-            formatted_addresses = []
-
-            for addr in addr_list:
-
-                if addr.family == socket.AF_INET:
-                    addr_type = "IPv4"
-
-                elif addr.family == socket.AF_INET6:
-                    addr_type = "IPv6"
-
-                elif addr.family == psutil.AF_LINK:
-                    addr_type = "MAC"
-
-                else:
-                    addr_type = f"Unknown({addr.family})"
-
-                formatted_addresses.append({
-                    "type": addr_type,
-                    "address": addr.address,
-                    "netmask": addr.netmask,
-                    "broadcast": addr.broadcast
-                })
-
+        for interface, info in stats.items():
             result[interface] = {
-                "addresses": formatted_addresses,
-                "is_up": if_stats.isup if if_stats else None,
-                "speed_mbps": if_stats.speed if if_stats else None,
-                "mtu": if_stats.mtu if if_stats else None
+                "is_up": info.isup,
+                "speed_mbps": info.speed
             }
 
         return result
@@ -50,18 +21,41 @@ class NetworkCollector:
     def get_network_dynamic_info() -> dict:
         counters = psutil.net_io_counters(pernic=True)
 
-        return {
-            interface: stats._asdict()
-            for interface, stats in counters.items()
-        }
+        result = {}
+
+        for interface, stats in counters.items():
+            result[interface] = {
+                "bytes_sent": stats.bytes_sent,
+                "bytes_recv": stats.bytes_recv,
+                "packets_sent": stats.packets_sent,
+                "packets_recv": stats.packets_recv
+            }
+
+        return result
 
     @staticmethod
-    def get_network_connections() -> dict:
-        connections = psutil.net_connections(kind="inet")
+    def calculate_network_speed(
+        previous_data: dict,
+        current_data: dict,
+        interval: float
+    ) -> dict:
 
-        return {
-            "connections": {
-                str(index): connection._asdict()
-                for index, connection in enumerate(connections)
+        result = {}
+
+        for interface, current in current_data.items():
+            previous = previous_data.get(interface)
+
+            if previous is None:
+                continue
+
+            result[interface] = {
+                "upload_speed": (
+                    current["bytes_sent"] - previous["bytes_sent"]
+                ) / interval,
+
+                "download_speed": (
+                    current["bytes_recv"] - previous["bytes_recv"]
+                ) / interval
             }
-        }
+
+        return result
