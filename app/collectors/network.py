@@ -26,9 +26,7 @@ class NetworkCollector:
         for interface, stats in counters.items():
             result[interface] = {
                 "bytes_sent": stats.bytes_sent,
-                "bytes_recv": stats.bytes_recv,
-                "packets_sent": stats.packets_sent,
-                "packets_recv": stats.packets_recv
+                "bytes_recv": stats.bytes_recv
             }
 
         return result
@@ -42,20 +40,25 @@ class NetworkCollector:
 
         result = {}
 
+        if interval <= 0:
+            return result
+
         for interface, current in current_data.items():
             previous = previous_data.get(interface)
 
             if previous is None:
                 continue
 
-            result[interface] = {
-                "upload_speed": (
-                    current["bytes_sent"] - previous["bytes_sent"]
-                ) / interval,
+            sent_difference = current["bytes_sent"] - previous["bytes_sent"]
+            recv_difference = current["bytes_recv"] - previous["bytes_recv"]
 
-                "download_speed": (
-                    current["bytes_recv"] - previous["bytes_recv"]
-                ) / interval
+            # Счётчики могли сброситься, например после переподключения.
+            if sent_difference < 0 or recv_difference < 0:
+                continue
+
+            result[interface] = {
+                "upload_speed": sent_difference / interval,
+                "download_speed": recv_difference / interval
             }
 
         return result
