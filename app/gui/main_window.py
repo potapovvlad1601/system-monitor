@@ -14,6 +14,8 @@ from app.gui.pages.dashboard import DashboardPage
 from app.gui.pages.cpu_page import CPUPage
 from app.gui.pages.memory_page import MemoryPage
 from app.gui.pages.disk_page import DiskPage
+from app.gui.pages.network_page import NetworkPage
+from app.gui.pages.processes_page import ProcessesPage
 
 from PySide6.QtWidgets import QMessageBox
 from app.gui.workers import SystemMonitorWorker
@@ -90,8 +92,8 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("Version 1.1.0")
-        version.setObjectName("Muted")
+        version = QLabel("Version 1.2.0")
+        version.setObjectName("Muted" )
 
         sidebar_layout.addWidget(version)
 
@@ -123,10 +125,16 @@ class MainWindow(QMainWindow):
         self.disk_page = DiskPage()
         self.pages.addWidget(self.disk_page)
 
+        # Network
+        self.network_page = NetworkPage()
+        self.pages.addWidget(self.network_page)
+
+        # Processes
+        self.processes_page = ProcessesPage()
+        self.pages.addWidget(self.processes_page)
+
         # Placeholder pages
         page_names = [
-            "Network",
-            "Processes",
             "Settings"
         ]
 
@@ -161,6 +169,8 @@ class MainWindow(QMainWindow):
         self.cpu_page.update_data(data)
         self.memory_page.update_data(data)
         self.disk_page.update_data(data)
+        self.network_page.update_data(data)
+        self.processes_page.update_data(data)
 
     def show_error(self, message: str):
         QMessageBox.critical(

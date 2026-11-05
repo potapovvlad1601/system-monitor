@@ -144,6 +144,6 @@ class DashboardPage(QWidget):
                         speed["upload_speed"] + speed["download_speed"]
                 )
 
-        total_speed_mb = total_speed / (1024 ** 2)
+        total_speed_mb = total_speed / 1024
 
         self.network_card.update_value(f"{total_speed_mb:.2f} MB/s")

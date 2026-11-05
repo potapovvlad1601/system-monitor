@@ -53,7 +53,7 @@ class SystemMonitorWorker(QThread):
                 self.data_updated.emit(data)
 
                 # Интервал между циклами.
-                self.msleep(1000)
+                self.msleep(100)
 
         except Exception as error:
             self.error_occurred.emit(str(error))
