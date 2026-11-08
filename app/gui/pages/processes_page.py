@@ -13,6 +13,8 @@ from PySide6.QtCore import Qt
 
 class ProcessesPage(QWidget):
 
+    MAX_DISPLAYED_PROCESSES = 50
+
     def __init__(self):
         super().__init__()
 
@@ -95,13 +97,20 @@ class ProcessesPage(QWidget):
         self.processes_table.setSortingEnabled(False)
 
         header = self.processes_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
+        self.processes_table.setColumnWidth(0, 80)
+        self.processes_table.setColumnWidth(2, 150)
+        self.processes_table.setColumnWidth(3, 100)
+        self.processes_table.setColumnWidth(4, 80)
+        self.processes_table.setColumnWidth(5, 90)
+        self.processes_table.setColumnWidth(6, 110)
+        self.create_table_items()
 
         table_layout.addWidget(table_title)
         table_layout.addWidget(self.processes_table)
@@ -152,6 +161,26 @@ class ProcessesPage(QWidget):
 
         return item
 
+    def create_table_items(self) -> None:
+        """Create table items once; later updates only replace their text."""
+        alignments = (
+            Qt.AlignmentFlag.AlignRight,
+            Qt.AlignmentFlag.AlignLeft,
+            Qt.AlignmentFlag.AlignLeft,
+            Qt.AlignmentFlag.AlignLeft,
+            Qt.AlignmentFlag.AlignRight,
+            Qt.AlignmentFlag.AlignRight,
+            Qt.AlignmentFlag.AlignRight
+        )
+        self.processes_table.setRowCount(self.MAX_DISPLAYED_PROCESSES)
+
+        for row in range(self.MAX_DISPLAYED_PROCESSES):
+            for column, alignment in enumerate(alignments):
+                self.processes_table.setItem(
+                    row, column, self.create_table_item("", alignment)
+                )
+            self.processes_table.setRowHidden(row, True)
+
     def update_data(self, data: dict):
         processes_data = data["processes"]
 
@@ -197,7 +226,7 @@ class ProcessesPage(QWidget):
             reverse=True
         )
 
-        rows = rows[:100]
+        rows = rows[:self.MAX_DISPLAYED_PROCESSES]
 
         self.total_processes.value_label.setText(str(total_count))
         self.running_processes.value_label.setText(str(running_count))
@@ -206,59 +235,27 @@ class ProcessesPage(QWidget):
             self.format_bytes(total_memory_rss)
         )
 
-        self.processes_table.setRowCount(len(rows))
+        self.processes_table.setUpdatesEnabled(False)
+        try:
+            for row_index in range(self.MAX_DISPLAYED_PROCESSES):
+                is_visible = row_index < len(rows)
+                self.processes_table.setRowHidden(row_index, not is_visible)
 
-        for row_index, row in enumerate(rows):
-            self.processes_table.setItem(
-                row_index,
-                0,
-                self.create_table_item(
+                if not is_visible:
+                    continue
+
+                row = rows[row_index]
+                values = (
                     str(row["pid"]),
-                    Qt.AlignmentFlag.AlignRight
-                )
-            )
-
-            self.processes_table.setItem(
-                row_index,
-                1,
-                self.create_table_item(str(row["name"]))
-            )
-
-            self.processes_table.setItem(
-                row_index,
-                2,
-                self.create_table_item(str(row["username"]))
-            )
-
-            self.processes_table.setItem(
-                row_index,
-                3,
-                self.create_table_item(str(row["status"]))
-            )
-
-            self.processes_table.setItem(
-                row_index,
-                4,
-                self.create_table_item(
+                    str(row["name"]),
+                    str(row["username"]),
+                    str(row["status"]),
                     f"{row['cpu_percent']:.1f}",
-                    Qt.AlignmentFlag.AlignRight
-                )
-            )
-
-            self.processes_table.setItem(
-                row_index,
-                5,
-                self.create_table_item(
                     f"{row['memory_percent']:.2f}",
-                    Qt.AlignmentFlag.AlignRight
+                    self.format_bytes(row["memory_rss"])
                 )
-            )
 
-            self.processes_table.setItem(
-                row_index,
-                6,
-                self.create_table_item(
-                    self.format_bytes(row["memory_rss"]),
-                    Qt.AlignmentFlag.AlignRight
-                )
-            )
+                for column, value in enumerate(values):
+                    self.processes_table.item(row_index, column).setText(value)
+        finally:
+            self.processes_table.setUpdatesEnabled(True)

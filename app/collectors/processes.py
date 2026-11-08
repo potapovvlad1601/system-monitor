@@ -1,47 +1,24 @@
 import psutil
-from datetime import datetime
 
 
 class ProcessCollector:
 
     @staticmethod
-    def get_process_static_info() -> dict:
-        result = {}
+    def get_processes_info(top_limit: int = 50) -> dict:
+        """Collect metrics for all processes and details only for visible rows."""
+        dynamic = {}
 
-        for process in psutil.process_iter(
-            ['pid', 'name', 'username', 'create_time']
-        ):
+        for process in psutil.process_iter([
+            'pid', 'status', 'cpu_percent', 'memory_percent', 'memory_info'
+        ]):
             try:
                 info = process.info
 
-                result[info['pid']] = {
-                    "name": info['name'],
-                    "username": info['username'],
-                    "create_time": (
-                        datetime.fromtimestamp(info['create_time']).isoformat()
-                        if info['create_time'] else None
-                    )
-                }
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-
-        return result
-
-    @staticmethod
-    def get_process_dynamic_info() -> dict:
-        result = {}
-
-        for process in psutil.process_iter(
-            ['pid', 'status', 'cpu_percent', 'memory_percent', 'memory_info']
-        ):
-            try:
-                info = process.info
-
-                result[info['pid']] = {
+                pid = info['pid']
+                dynamic[pid] = {
                     "status": info['status'],
-                    "cpu_percent": info['cpu_percent'],
-                    "memory_percent": info['memory_percent'],
+                    "cpu_percent": info['cpu_percent'] or 0.0,
+                    "memory_percent": info['memory_percent'] or 0.0,
                     "memory_rss": (
                         info['memory_info'].rss
                         if info['memory_info'] else None
@@ -51,4 +28,26 @@ class ProcessCollector:
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
 
-        return result
+        top_pids = sorted(
+            dynamic,
+            key=lambda pid: (
+                dynamic[pid]["cpu_percent"],
+                dynamic[pid]["memory_percent"]
+            ),
+            reverse=True
+        )[:top_limit]
+
+        static = {}
+        for pid in top_pids:
+            try:
+                process_info = psutil.Process(pid).as_dict(
+                    attrs=["name", "username"]
+                )
+                static[pid] = {
+                    "name": process_info.get("name"),
+                    "username": process_info.get("username")
+                }
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+
+        return {"static": static, "dynamic": dynamic}

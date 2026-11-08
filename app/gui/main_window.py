@@ -69,22 +69,22 @@ class MainWindow(QMainWindow):
         self.navigation_buttons = []
 
         pages = [
-            ("Dashboard", 0),
-            ("CPU", 1),
-            ("Memory", 2),
-            ("Disk", 3),
-            ("Network", 4),
-            ("Processes", 5),
-            ("Settings", 6)
+            ("Dashboard", "dashboard", 0),
+            ("CPU", "cpu", 1),
+            ("Memory", "memory", 2),
+            ("Disk", "disk", 3),
+            ("Network", "network", 4),
+            ("Processes", "processes", 5),
+            ("Settings", "settings", 6)
         ]
 
-        for name, index in pages:
+        for name, page_name, index in pages:
             button = QPushButton(name)
             button.setObjectName("NavButton")
             button.setCheckable(True)
 
             button.clicked.connect(
-                lambda checked=False, i=index: self.change_page(i)
+                lambda checked=False, i=index, p=page_name: self.change_page(i, p)
             )
 
             sidebar_layout.addWidget(button)
@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("Version 1.2.0")
+        version = QLabel("Version 1.3.0")
         version.setObjectName("Muted" )
 
         sidebar_layout.addWidget(version)
@@ -155,22 +155,32 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(content, 1)
 
-        self.change_page(0)
+        self.change_page(0, "dashboard")
 
-    def change_page(self, index):
+    def change_page(self, index, page_name):
 
         self.pages.setCurrentIndex(index)
+
+        if hasattr(self, "worker"):
+            self.worker.set_active_page(page_name)
 
         for i, button in enumerate(self.navigation_buttons):
             button.setChecked(i == index)
 
-    def update_dashboard(self, data: dict):
-        self.dashboard_page.update_data(data)
-        self.cpu_page.update_data(data)
-        self.memory_page.update_data(data)
-        self.disk_page.update_data(data)
-        self.network_page.update_data(data)
-        self.processes_page.update_data(data)
+    def update_dashboard(self, page_name: str, data: dict):
+        page_updaters = {
+            "dashboard": self.dashboard_page,
+            "cpu": self.cpu_page,
+            "memory": self.memory_page,
+            "disk": self.disk_page,
+            "network": self.network_page,
+            "processes": self.processes_page
+        }
+        page = page_updaters.get(page_name)
+
+        # A user may have changed the page while a collection was in progress.
+        if page is not None and page is self.pages.currentWidget():
+            page.update_data(data)
 
     def show_error(self, message: str):
         QMessageBox.critical(
