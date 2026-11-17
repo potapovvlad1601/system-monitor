@@ -177,7 +177,7 @@ class NetworkPage(QWidget):
         if value is None:
             return "N/A"
 
-        return f"{value / 102:.2f} KB/s"
+        return f"{value / 1024:.2f} KB/s"
 
     def update_data(self, data: dict):
         network_data = data["network"]

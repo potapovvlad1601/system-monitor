@@ -38,11 +38,16 @@ def collect_network_dynamic_info() -> dict:
     }
 
 
-def collect_processes_info() -> dict:
-    return ProcessCollector.get_processes_info()
+def collect_processes_info(process_limit: int, process_sort_by: str) -> dict:
+    return ProcessCollector.get_processes_info(process_limit, process_sort_by)
 
 
-def collect_page_data(page_name: str, static_info: dict) -> dict | None:
+def collect_page_data(
+    page_name: str,
+    static_info: dict,
+    process_limit: int = 50,
+    process_sort_by: str = "cpu"
+) -> dict | None:
     """Return only the information required by the currently visible page."""
     if page_name == "dashboard":
         return {
@@ -89,6 +94,10 @@ def collect_page_data(page_name: str, static_info: dict) -> dict | None:
         }
 
     if page_name == "processes":
-        return {"processes": collect_processes_info()}
+        return {
+            "processes": collect_processes_info(
+                process_limit, process_sort_by
+            )
+        }
 
     return None

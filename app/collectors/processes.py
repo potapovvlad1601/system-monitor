@@ -4,7 +4,10 @@ import psutil
 class ProcessCollector:
 
     @staticmethod
-    def get_processes_info(top_limit: int = 50) -> dict:
+    def get_processes_info(
+        top_limit: int = 50,
+        sort_by: str = "cpu"
+    ) -> dict:
         """Collect metrics for all processes and details only for visible rows."""
         dynamic = {}
 
@@ -28,13 +31,19 @@ class ProcessCollector:
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
 
+        sort_keys = {
+            "cpu": lambda pid: (
+                dynamic[pid]["cpu_percent"], dynamic[pid]["memory_percent"]
+            ),
+            "memory": lambda pid: (
+                dynamic[pid]["memory_percent"], dynamic[pid]["cpu_percent"]
+            ),
+            "pid": lambda pid: pid
+        }
         top_pids = sorted(
             dynamic,
-            key=lambda pid: (
-                dynamic[pid]["cpu_percent"],
-                dynamic[pid]["memory_percent"]
-            ),
-            reverse=True
+            key=sort_keys[sort_by],
+            reverse=sort_by != "pid"
         )[:top_limit]
 
         static = {}

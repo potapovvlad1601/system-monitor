@@ -13,11 +13,12 @@ from PySide6.QtCore import Qt
 
 class ProcessesPage(QWidget):
 
-    MAX_DISPLAYED_PROCESSES = 50
+    MAX_TABLE_ROWS = 100
 
     def __init__(self):
         super().__init__()
-
+        self.process_limit = 50
+        self.process_sort_by = "cpu"
         self.create_ui()
 
     def create_ui(self):
@@ -172,14 +173,18 @@ class ProcessesPage(QWidget):
             Qt.AlignmentFlag.AlignRight,
             Qt.AlignmentFlag.AlignRight
         )
-        self.processes_table.setRowCount(self.MAX_DISPLAYED_PROCESSES)
+        self.processes_table.setRowCount(self.MAX_TABLE_ROWS)
 
-        for row in range(self.MAX_DISPLAYED_PROCESSES):
+        for row in range(self.MAX_TABLE_ROWS):
             for column, alignment in enumerate(alignments):
                 self.processes_table.setItem(
                     row, column, self.create_table_item("", alignment)
                 )
             self.processes_table.setRowHidden(row, True)
+
+    def configure(self, process_limit: int, process_sort_by: str) -> None:
+        self.process_limit = process_limit
+        self.process_sort_by = process_sort_by
 
     def update_data(self, data: dict):
         processes_data = data["processes"]
@@ -218,15 +223,18 @@ class ProcessesPage(QWidget):
                 "memory_rss": memory_rss
             })
 
-        rows.sort(
-            key=lambda row: (
-                row["cpu_percent"],
-                row["memory_percent"]
+        sort_keys = {
+            "cpu": lambda row: (row["cpu_percent"], row["memory_percent"]),
+            "memory": lambda row: (
+                row["memory_percent"], row["cpu_percent"]
             ),
-            reverse=True
+            "pid": lambda row: row["pid"]
+        }
+        rows.sort(
+            key=sort_keys[self.process_sort_by],
+            reverse=self.process_sort_by != "pid"
         )
-
-        rows = rows[:self.MAX_DISPLAYED_PROCESSES]
+        rows = rows[:self.process_limit]
 
         self.total_processes.value_label.setText(str(total_count))
         self.running_processes.value_label.setText(str(running_count))
@@ -237,7 +245,7 @@ class ProcessesPage(QWidget):
 
         self.processes_table.setUpdatesEnabled(False)
         try:
-            for row_index in range(self.MAX_DISPLAYED_PROCESSES):
+            for row_index in range(self.MAX_TABLE_ROWS):
                 is_visible = row_index < len(rows)
                 self.processes_table.setRowHidden(row_index, not is_visible)
 

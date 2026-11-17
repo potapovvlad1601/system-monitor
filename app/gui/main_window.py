@@ -7,8 +7,10 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QPushButton,
-    QStackedWidget
+    QStackedWidget,
+    QFileDialog
 )
+from PySide6.QtCore import QSettings
 
 from app.gui.pages.dashboard import DashboardPage
 from app.gui.pages.cpu_page import CPUPage
@@ -16,23 +18,28 @@ from app.gui.pages.memory_page import MemoryPage
 from app.gui.pages.disk_page import DiskPage
 from app.gui.pages.network_page import NetworkPage
 from app.gui.pages.processes_page import ProcessesPage
+from app.gui.pages.settings_page import SettingsPage
 
 from PySide6.QtWidgets import QMessageBox
 from app.gui.workers import SystemMonitorWorker
+from app.settings import MonitorSettings
 
-from app.gui.styles import MAIN_STYLE
+from app.gui.styles import get_style
+from app.services.diagnostics_export import export_diagnostics
 
 
 class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.settings = self.load_settings()
+        self._last_dashboard_data = None
 
         self.setWindowTitle("System Monitor")
         self.resize(1200, 750)
         self.setMinimumSize(900, 600)
 
-        self.setStyleSheet(MAIN_STYLE)
+        self.apply_theme(self.settings.theme)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -43,11 +50,15 @@ class MainWindow(QMainWindow):
 
         self.create_sidebar(main_layout)
         self.create_content(main_layout)
+        self.apply_theme(self.settings.theme)
 
         self.worker = SystemMonitorWorker(self)
 
         self.worker.data_updated.connect(self.update_dashboard)
         self.worker.error_occurred.connect(self.show_error)
+        self.settings_page.settings_changed.connect(self.apply_settings)
+        self.dashboard_page.export_requested.connect(self.export_diagnostics)
+        self.worker.set_settings(self.settings)
 
         self.worker.start()
 
@@ -92,7 +103,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("Version 1.3.0")
+        version = QLabel("Version 1.3.1")
         version.setObjectName("Muted" )
 
         sidebar_layout.addWidget(version)
@@ -133,23 +144,8 @@ class MainWindow(QMainWindow):
         self.processes_page = ProcessesPage()
         self.pages.addWidget(self.processes_page)
 
-        # Placeholder pages
-        page_names = [
-            "Settings"
-        ]
-
-        for name in page_names:
-            placeholder = QWidget()
-
-            layout = QVBoxLayout(placeholder)
-
-            label = QLabel(f"{name} page")
-            label.setObjectName("PageTitle")
-
-            layout.addWidget(label)
-            layout.addStretch()
-
-            self.pages.addWidget(placeholder)
+        self.settings_page = SettingsPage(self.settings)
+        self.pages.addWidget(self.settings_page)
 
         content_layout.addWidget(self.pages)
 
@@ -168,6 +164,8 @@ class MainWindow(QMainWindow):
             button.setChecked(i == index)
 
     def update_dashboard(self, page_name: str, data: dict):
+        if page_name == "dashboard":
+            self._last_dashboard_data = data
         page_updaters = {
             "dashboard": self.dashboard_page,
             "cpu": self.cpu_page,
@@ -181,6 +179,61 @@ class MainWindow(QMainWindow):
         # A user may have changed the page while a collection was in progress.
         if page is not None and page is self.pages.currentWidget():
             page.update_data(data)
+
+    def apply_settings(self, settings: MonitorSettings) -> None:
+        self.settings = settings
+        self.save_settings()
+        self.apply_theme(settings.theme)
+        self.processes_page.configure(
+            settings.process_limit, settings.process_sort_by
+        )
+        self.worker.set_settings(settings)
+
+    def load_settings(self) -> MonitorSettings:
+        stored = QSettings("System Monitor", "System Monitor")
+        return MonitorSettings(
+            update_interval_ms=int(stored.value("update_interval_ms", 1000)),
+            process_limit=int(stored.value("process_limit", 50)),
+            process_sort_by=str(stored.value("process_sort_by", "cpu")),
+            theme=str(stored.value("theme", "dark")),
+        )
+
+    def save_settings(self) -> None:
+        stored = QSettings("System Monitor", "System Monitor")
+        stored.setValue("update_interval_ms", self.settings.update_interval_ms)
+        stored.setValue("process_limit", self.settings.process_limit)
+        stored.setValue("process_sort_by", self.settings.process_sort_by)
+        stored.setValue("theme", self.settings.theme)
+
+    def apply_theme(self, theme: str) -> None:
+        self.setStyleSheet(get_style(theme))
+        if hasattr(self, "dashboard_page"):
+            for card in (
+                self.dashboard_page.cpu_chart,
+                self.dashboard_page.memory_chart,
+                self.dashboard_page.disk_chart,
+                self.dashboard_page.network_chart,
+            ):
+                card.chart.set_theme(theme)
+
+    def export_diagnostics(self) -> None:
+        if not self._last_dashboard_data:
+            QMessageBox.information(
+                self, "Diagnostics", "Wait for the first dashboard update."
+            )
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export diagnostics", "system-monitor-diagnostics.json",
+            "JSON files (*.json)"
+        )
+        if not path:
+            return
+        try:
+            export_diagnostics(path, self._last_dashboard_data, self.settings)
+        except OSError as error:
+            self.show_error(f"Could not export diagnostics: {error}")
+            return
+        QMessageBox.information(self, "Diagnostics", "Diagnostics exported successfully.")
 
     def show_error(self, message: str):
         QMessageBox.critical(
