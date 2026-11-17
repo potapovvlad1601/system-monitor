@@ -66,7 +66,8 @@ class MainWindow(QMainWindow):
 
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(230)
+        # The logo needs room for high-DPI Windows font rendering.
+        sidebar.setFixedWidth(250)
 
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(12, 15, 12, 15)
@@ -103,7 +104,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("Version 1.3.1")
+        version = QLabel("Version 1.3.2")
         version.setObjectName("Muted" )
 
         sidebar_layout.addWidget(version)
